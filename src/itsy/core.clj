@@ -8,7 +8,8 @@
             [itsy.robots :as robots]
             [slingshot.slingshot :refer [get-thrown-object try+]])
   (:import (java.net URL)
-           (java.util.concurrent LinkedBlockingQueue TimeUnit)))
+           (java.util.concurrent LinkedBlockingQueue TimeUnit))
+  (:gen-class))
 
 (def terminated Thread$State/TERMINATED)
 
@@ -262,3 +263,10 @@
   "handler that does nothing"
   [& _]
   nil)
+
+(defn -main
+  "main"
+  [& args]
+  (println "hello itsy")
+  (info "abc")
+  (debug "def"))

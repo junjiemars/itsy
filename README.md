@@ -1,5 +1,16 @@
 # Itsy
 
+## How to use
+
+### How to specify the logfile path
+JAVA_OPTS="-Dlogfile.path=<path>" lein with-profile uberjar [run]
+
+
+
+# THE BELLOW BE DEPRECATED
+================
+# Itsy
+
 A threaded web spider, written in Clojure.
 
 ## Usage

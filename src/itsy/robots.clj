@@ -3,7 +3,7 @@
             [clj-http.client :as client]
             [clj-robots.core :as robots]))
 
-(def *host-robots* (atom {}))
+(def ^:dynamic *host-robots* (atom {}))
 
 (defn fetch-robots
   [a-host]
