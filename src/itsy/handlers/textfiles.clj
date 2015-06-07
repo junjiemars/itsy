@@ -3,7 +3,8 @@
   (:require [clojure.java.io :refer [file]]
             [clojure.tools.logging :refer [info debug trace warn]]
             [clj-http.util :as util]
-            [itsy.extract :refer [html->str]]))
+            [itsy.extract :refer [html->str]])
+  (:gen-class))
 
 (defn make-textfile-handler
   "Create a handler that saves urls into text files"

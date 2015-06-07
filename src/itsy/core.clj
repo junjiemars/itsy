@@ -267,6 +267,6 @@
 (defn -main
   "main"
   [& args]
-  (println "hello itsy")
+  (info args)
   (info "abc")
   (debug "def"))
