@@ -8,15 +8,17 @@
                  [clj-robots "0.6.0"]
                  [com.cemerick/url "0.1.1"]
                  [org.clojure/tools.logging "0.3.1"]
-                 [log4j/log4j "1.2.17" :exclusions [javax.mail/mail
-                                                    javax.jms/jms
-                                                    com.sun.jmdk/jmxtools
-                                                    com.sun.jmx/jmxri]]
+                 [log4j/log4j "1.2.17"
+                  :exclusions [javax.mail/mail
+                               javax.jms/jms
+                               com.sun.jmdk/jmxtools
+                               com.sun.jmx/jmxri]]
                  [org.slf4j/slf4j-log4j12 "1.7.5"]
                  [org.apache.tika/tika-core "1.5"]
                  [org.apache.tika/tika-parsers "1.5"]]
   :main itsy.core
   ;:resource-paths ["etc"]
-  :profiles {:dev {:jvm-opts ["-Dlogfile.path=itsy.log"]}
-             :uberjar {:aot :all}}
-  )
+  :profiles {:dev
+             {:jvm-opts ["-Dlogfile.path=itsy.log"]
+              :dependencies [[org.clojure/tools.trace "0.7.8"]]}
+             :uberjar {:aot :all}})

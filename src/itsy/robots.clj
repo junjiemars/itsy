@@ -1,19 +1,17 @@
 (ns itsy.robots
-  (:require [cemerick.url    :as url]
-            [clj-http.client :as client]
-            [clj-robots.core :as robots]))
+  "robots.txt fetch, parse and save"
+  (:require [cemerick.url    :as u]
+            [clj-http.client :as c]
+            [clj-robots.core :as r]
+            [clojure.tools.logging :as l]))
 
 (def ^:dynamic *host-robots* (atom {}))
 
-(defn fetch-robots
-  [a-host]
-  (try (-> a-host
-           (url/url a-host "/robots.txt")
-           str
-           client/get
-           :body
-           robots/parse)
-       (catch Exception e :not-found)))
+(defn fetch-robots-file [host]
+  (try (r/parse (:body (c/get (str (u/url host "/robots.txt")))))
+       (catch Exception e
+         (l/error e)
+         nil)))
 
 (defn fetch-and-save-robots
   [a-site]

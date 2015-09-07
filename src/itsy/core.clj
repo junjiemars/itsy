@@ -76,6 +76,7 @@
           ufq (set/difference all-candidates fq)
           fq-ufq (map #(str (url original-url %)) ufq)
           all (set (concat fq fq-ufq))]
+      (info (format "###%s" all))
       all)))
 
 (defn- crawl-page
@@ -264,9 +265,14 @@
   [& _]
   nil)
 
+(defn my-handler [{:keys [url body]}]
+  (println url "has a count of" (count body)))
+
 (defn -main
   "main"
   [& args]
   (info args)
   (info "abc")
-  (debug "def"))
+  (debug "def")
+  (crawl {:url "http://service.js.10086.cn"
+          :workers 1}))
