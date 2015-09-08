@@ -132,7 +132,8 @@
          (not (-> config :polite?))
          (crawl-page config url-map)
 
-         (robots/crawlable? (:url url-map))
+         ;;(robots/crawlable? (:url url-map))
+         true
          (crawl-page config url-map)
 
          :else
