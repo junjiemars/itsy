@@ -13,13 +13,12 @@
 
 (def terminated Thread$State/TERMINATED)
 
-(defn valid-url?
-  "Test whether a URL is valid, returning a map of information about it if
-  valid, nil otherwise."
-  [url-str]
-  (try
-    (url url-str)
-    (catch Exception _ nil)))
+(defn url?
+  "Returns a map about the url if the url is valid, else nil"
+  [u]
+  (try (url u)
+       (catch Exception e
+         (error e) nil)))
 
 (defn- enqueue*
   "Internal function to enqueue a url as a map with :url and :count."
