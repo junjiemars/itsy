@@ -1,6 +1,7 @@
 (ns itsy.core
   "Tool used to crawl web pages with an aritrary handler."
-  (:require [cemerick.url :refer [url]]
+  (:require [clojure.tools.cli :refer [parse-opts]]
+            [cemerick.url :refer [url]]
             [clojure.string :as s]
             [clojure.tools.logging :refer [debug error info trace warn]]
             [clojure.set :as set]
@@ -10,6 +11,8 @@
   (:import (java.net URL)
            (java.util.concurrent LinkedBlockingQueue TimeUnit))
   (:gen-class))
+
+(def ^:dynmaic *options* (atom {}))
 
 (def terminated Thread$State/TERMINATED)
 
@@ -38,7 +41,7 @@
 
     (when (or (neg? (:url-limit config))
               (< @(-> config :state :url-count) (:url-limit config)))
-      (when-let [url-info (valid-url? url)]
+      (when-let [url-info (url? url)]
         (swap! (-> config :state :seen-urls) assoc url 1)
         (if-let [host-limiter (:host-limit config)]
           (when (.contains (:host url-info) host-limiter)
@@ -268,11 +271,23 @@
 (defn my-handler [{:keys [url body]}]
   (println url "has a count of" (count body)))
 
+(def cli-options
+  [["-f" "--file FILE" "Configuration File"
+    :default "config"
+    ;:parse-fn #(Integer/parseInt %)
+    ;:validate [#(< 0 % 0x10000) "Must be a number between 0 and 65536"]
+    ]
+   ["-v" nil "Verbosity level"
+    :id :verbosity
+    :default 0
+    :assoc-fn (fn [m k _] (update-in m [k] inc))]
+   ["-h" "--help"]])
+
 (defn -main
-  "main"
+  "Read configuration file and run"
   [& args]
-  (info args)
-  (info "abc")
-  (debug "def")
-  (crawl {:url "http://service.js.10086.cn"
-          :workers 1}))
+  (info "ready to crawl http://service.js.10086.cn")
+  (parse-opts args cli-options)
+  ;(swap! *options* (parse-opts args cli-options))
+  ;(crawl {:url "http://service.js.10086.cn":workers 1})
+  )
