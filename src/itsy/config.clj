@@ -6,7 +6,7 @@
   (:gen-class))
 
 (def ^:dynamic *config* (atom
-                         {:workers 4
+                         {:workers 1
                           :url-limit 100
                           :url-extractor u/extract-all
                           :state {:url-queue (LinkedBlockingQueue.)
