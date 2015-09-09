@@ -17,4 +17,5 @@
   :profiles {:dev
              {:jvm-opts ["-Droot-level=DEBUG"]
               :dependencies [[org.clojure/tools.trace "0.7.8"]]}
-             :uberjar {:aot :all}})
+             :uberjar {:aot :all
+                   :jvm-opts ["-Droot-level=INFO"]}})

@@ -7,12 +7,14 @@
             [clojure.set :as set]
             [clj-http.client :as http]
             [itsy.robots :as robots]
-            [slingshot.slingshot :refer [get-thrown-object try+]])
+            [slingshot.slingshot :refer [get-thrown-object try+]]
+            [itsy.config :as c]
+            [itsy.url :as u])
   (:import (java.net URL)
            (java.util.concurrent LinkedBlockingQueue TimeUnit))
   (:gen-class))
 
-(def ^:dynmaic *options* (atom {}))
+(def ^:dynamic *options* (atom {}))
 
 (def terminated Thread$State/TERMINATED)
 
@@ -48,38 +50,11 @@
             (enqueue* config url))
           (enqueue* config url))))))
 
-
 (defn enqueue-urls
   "Enqueue a collection of urls for work"
   [config urls]
   (doseq [url urls]
     (enqueue-url config url)))
-
-
-(def url-regex #"https?://[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]")
-
-(defn extract-all
-  "Dumb URL extraction based on regular expressions. Extracts relative URLs."
-  [original-url body]
-  (when body
-    (let [candidates1 (->> (re-seq #"href=\"([^\"]+)\"" body)
-                           (map second)
-                           (remove #(or (= % "/")
-                                        (.startsWith % "#")))
-                           set)
-          candidates2 (->> (re-seq #"href='([^']+)'" body)
-                           (map second)
-                           (remove #(or (= % "/")
-                                        (.startsWith % "#")))
-                           set)
-          candidates3 (re-seq url-regex body)
-          all-candidates (set (concat candidates1 candidates2 candidates3))
-          fq (set (filter #(.startsWith % "http") all-candidates))
-          ufq (set/difference all-candidates fq)
-          fq-ufq (map #(str (url original-url %)) ufq)
-          all (set (concat fq fq-ufq))]
-      (info (format "###%s" all))
-      all)))
 
 (defn- crawl-page
   "Internal crawling function that fetches a page, enqueues url found on that
@@ -217,13 +192,6 @@
   (info "New worker count:" (count @(-> config :state :running-workers)))
   (count @(-> config :state :running-workers)))
 
-
-(def default-http-opts {:socket-timeout 10000
-                        :conn-timeout 10000
-                        :insecure? true
-                        :throw-entire-message? false})
-
-
 (defn crawl
   "Crawl a url with the given config."
   [options]
@@ -235,18 +203,7 @@
                       (= true hl) (:host (url (:url options)))
                       :else hl)
         _ (trace :host-limiter host-limiter)
-        config (merge {:workers 5
-                       :url-limit 100
-                       :url-extractor extract-all
-                       :state {:url-queue (LinkedBlockingQueue.)
-                               :url-count (atom 0)
-                               :running-workers (ref [])
-                               :worker-canaries (ref {})
-                               :seen-urls (atom {})}
-                       :http-opts default-http-opts
-                       :polite? true}
-                      options
-                      {:host-limit host-limiter})]
+        config (merge options {:host-limit host-limiter})]
     (trace :config config)
     (info "Starting" (:workers config) "workers...")
     (http/with-connection-pool {:timeout 5
@@ -286,8 +243,9 @@
 (defn -main
   "Read configuration file and run"
   [& args]
-  (info "ready to crawl http://service.js.10086.cn")
-  (parse-opts args cli-options)
-  ;(swap! *options* (parse-opts args cli-options))
-  ;(crawl {:url "http://service.js.10086.cn":workers 1})
-  )
+  (let [opts (parse-opts args cli-options)
+        conf (c/read-from-file (:file (:options opts)))
+        ]
+    (info "ready to crawl " (:url conf))
+    (crawl conf)
+    ))
