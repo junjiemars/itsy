@@ -1,10 +1,10 @@
 (ns itsy.core
   "Tool used to crawl web pages with an aritrary handler."
   (:require [clojure.tools.cli :refer [parse-opts]]
-            [cemerick.url :refer [url]]
             [clojure.string :as s]
             [clojure.tools.logging :as log]
             [clojure.set :as set]
+            [cemerick.url :refer [url]]
             [clj-http.client :as http]
             [itsy.robots :as robots]
             [slingshot.slingshot :refer [get-thrown-object try+]]
@@ -229,6 +229,9 @@
     ;:parse-fn #(Integer/parseInt %)
     ;:validate [#(< 0 % 0x10000) "Must be a number between 0 and 65536"]
     ]
+   ["-o" "--out FILE" "Output File"
+    :default "cawled"
+    ]
    ["-v" nil "Verbosity level"
     :id :verbosity
     :default 0
@@ -238,9 +241,13 @@
 (defn -main
   "Read configuration file and run"
   [& args]
+
   (let [opts (parse-opts args cli-options)
         conf (c/read-from-file (:file (:options opts)))
+        out (:out (:options opts))
         ]
+    (.addShutdownHook (Runtime/getRuntime)
+                      (Thread.
+                       #(c/pretty-save @c/*config* out)))
     (log/info "ready to crawl " (:url conf))
-    (crawl conf)
-    ))
+    (crawl conf)))

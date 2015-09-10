@@ -1,6 +1,8 @@
 (ns itsy.config
   "Read, parse and save config file"
-  (:require [itsy.url :as u])
+  (:require [clojure.java.io :refer [writer]]
+            [clojure.pprint :refer [pprint]]
+            [itsy.url :as u])
   (:import (java.net URL)
            (java.util.concurrent LinkedBlockingQueue TimeUnit))
   (:gen-class))
@@ -31,3 +33,7 @@
   "Save *config* to file"
   ([f] (spit f @*config*))
   ([f c] (spit f c)))
+
+(defn pretty-save
+  ([f] (pprint @*config* (writer f)))
+  ([f c] (pprint c (writer f))))
