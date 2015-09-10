@@ -1,8 +1,15 @@
 (ns itsy.url
   (:require [clojure.set :as set]
             [clojure.tools.logging :as log]
-            [cemerick.url :as u])
+            [cemerick.url :refer [url]])
   (:gen-class))
+
+(defn url?
+  "Returns a map about the url if the url is valid, else nil"
+  [u]
+  (try (url u)
+       (catch Exception e
+         (log/error e) nil)))
 
 (defn extract-all
   "Dumb URL extraction based on regular expressions. Extracts relative URLs."
@@ -23,7 +30,7 @@
           all-candidates (set (concat candidates1 candidates2 candidates3))
           fq (set (filter #(.startsWith % "http") all-candidates))
           ufq (set/difference all-candidates fq)
-          fq-ufq (map #(str (u/url original-url %)) ufq)
+          fq-ufq (map #(str (url original-url %)) ufq)
           all (set (concat fq fq-ufq))]
       (log/info all)
       all)))

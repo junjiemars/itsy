@@ -4,7 +4,7 @@
             [clojure.string :as s]
             [clojure.tools.logging :as log]
             [clojure.set :as set]
-            [cemerick.url :refer [url]]
+            ;[cemerick.url :refer [url]]
             [clj-http.client :as http]
             [itsy.robots :as robots]
             [slingshot.slingshot :refer [get-thrown-object try+]]
@@ -17,13 +17,6 @@
 (def ^:dynamic *options* (atom {}))
 
 (def terminated Thread$State/TERMINATED)
-
-(defn url?
-  "Returns a map about the url if the url is valid, else nil"
-  [u]
-  (try (url u)
-       (catch Exception e
-         (log/error e) nil)))
 
 (defn- enqueue*
   "Internal function to enqueue a url as a map with :url and :count."
@@ -43,7 +36,7 @@
 
     (when (or (neg? (:url-limit config))
               (< @(-> config :state :url-count) (:url-limit config)))
-      (when-let [url-info (url? url)]
+      (when-let [url-info (u/url? url)]
         (swap! (-> config :state :seen-urls) assoc url 1)
         (if-let [host-limiter (:host-limit config)]
           (when (re-find host-limiter (:host url-info))
