@@ -37,3 +37,8 @@
 (defn pretty-save
   ([f] (pprint @*config* (writer f)))
   ([f c] (pprint c (writer f))))
+
+(defn nop
+  "Returns nil allways which can be used as default handler"
+  [& _]
+  nil)

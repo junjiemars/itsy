@@ -204,16 +204,6 @@
       (enqueue-url config (:url config)))
     config))
 
-(defn palm
-  "It's a HAND-ler.. get it? That was a terrible pun."
-  [{:keys [url body]}]
-  (println :url url :size (count body)))
-
-(defn noop
-  "handler that does nothing"
-  [& _]
-  nil)
-
 (def cli-options
   [["-f" "--file FILE" "Configuration File"
     :default "config"
