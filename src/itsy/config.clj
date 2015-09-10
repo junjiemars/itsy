@@ -10,7 +10,8 @@
 (def ^:dynamic *config* (atom
                          {:workers 1
                           :url-limit 100
-                          :url-extractor u/extract-all
+                          :url-extractor #'u/extract-all
+                          :handler #'u/url-counter
                           :state {:url-queue (LinkedBlockingQueue.)
                                   :url-count (atom 0)
                                   :running-workers (ref [])
@@ -21,7 +22,6 @@
                                       :insecure? true
                                       :throw-entire-message? false}
                           :polite? true}))
-
 
 (defn read-from-file
   "Read config from file and store it in *config* "

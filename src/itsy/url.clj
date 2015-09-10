@@ -25,5 +25,8 @@
           ufq (set/difference all-candidates fq)
           fq-ufq (map #(str (u/url original-url %)) ufq)
           all (set (concat fq fq-ufq))]
-      (log/info (format "###%s" all))
+      (log/info all)
       all)))
+
+(defn url-counter [{:keys [url body]}]
+  (log/info url " had been crawled " (count body) " times"))

@@ -61,7 +61,7 @@
   page and calls the handler with the page body."
   [config url-map]
   (try+
-   (log/trace :retrieving-body-for url-map)
+   (log/debug :retrieving-body-for url-map)
    (let [url (:url url-map)
          score (:count url-map)
          body (:body (http/get url (:http-opts config)))
@@ -69,9 +69,10 @@
          urls ((:url-extractor config) url body)]
      (enqueue-urls config urls)
      (try
-       ((:handler config) (assoc url-map :body body))
+       (when-let [f (:handler config)]
+         (f (assoc url-map :body body)))
        (catch Exception e
-         (log/error e "Exception executing handler"))))
+         (log/error (.getMessage e) e))))
    (catch java.net.SocketTimeoutException e
      (log/trace "connection timed out to" (:url url-map)))
    (catch org.apache.http.conn.ConnectTimeoutException e
@@ -220,9 +221,6 @@
   [& _]
   nil)
 
-(defn my-handler [{:keys [url body]}]
-  (println url "has a count of" (count body)))
-
 (def cli-options
   [["-f" "--file FILE" "Configuration File"
     :default "config"
@@ -248,6 +246,10 @@
         ]
     (.addShutdownHook (Runtime/getRuntime)
                       (Thread.
-                       #(c/pretty-save @c/*config* out)))
+                       #(do
+                         (c/save-to-file out)
+                         (c/pretty-save
+                          (str out "-urls")
+                          @(:seen-urls (:state @c/*config*))))))
     (log/info "ready to crawl " (:url conf))
     (crawl conf)))
