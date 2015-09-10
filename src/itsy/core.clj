@@ -10,8 +10,7 @@
             [slingshot.slingshot :refer [get-thrown-object try+]]
             [itsy.config :as c]
             [itsy.url :as u])
-  (:import (java.net URL)
-           (java.util.concurrent LinkedBlockingQueue TimeUnit))
+  (:import (java.util.concurrent TimeUnit))
   (:gen-class))
 
 (def ^:dynamic *options* (atom {}))
