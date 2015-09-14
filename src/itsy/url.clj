@@ -33,7 +33,7 @@
           fq-ufq (map #(str (url original-url %)) ufq)
           all (set (concat fq fq-ufq))]
       (log/info all)
-      all)))
+      {:to all :from original-url})))
 
 (defn url-counter [{:keys [url body]}]
   (log/info url " had been crawled " (count body) " times"))

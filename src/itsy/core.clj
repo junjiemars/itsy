@@ -29,24 +29,26 @@
 (defn enqueue-url
   "Enqueue the url assuming the url-count is below the limit and we haven't seen
   this url before."
-  [config url]
-  (if (get @(-> config :state :seen-urls) url)
-    (swap! (-> config :state :seen-urls) update-in [url] inc)
+  [config {:keys [:to :from] :as url}]
+  (if (get @(-> config :state :seen-urls) to)
+    (do
+      (swap! (-> config :state :seen-urls) update-in [to :count] inc)
+      (swap! (:seen-urls (:state config)) update-in [to :from] #(conj % from)))
 
     (when (or (neg? (:url-limit config))
               (< @(-> config :state :url-count) (:url-limit config)))
-      (when-let [url-info (u/url? url)]
-        (swap! (-> config :state :seen-urls) assoc url 1)
+      (when-let [url-info (u/url? to)]
+        (swap! (-> config :state :seen-urls) assoc to {:count 1 :from #{from}})
         (if-let [host-limiter (:host-limit config)]
           (when (re-find host-limiter (:host url-info))
-            (enqueue* config url))
-          (enqueue* config url))))))
+            (enqueue* config to))
+          (enqueue* config to))))))
 
 (defn enqueue-urls
   "Enqueue a collection of urls for work"
-  [config urls]
-  (doseq [url urls]
-    (enqueue-url config url)))
+  [config {:keys [:to :from] :as urls}]
+  (doseq [url to]
+    (enqueue-url config {:to url :from from})))
 
 (defn- crawl-page
   "Internal crawling function that fetches a page, enqueues url found on that
@@ -200,7 +202,7 @@
       (dotimes [_ (:workers config)]
         (start-worker config))
       (log/info "Starting crawl of" (:url config))
-      (enqueue-url config (:url config)))
+      (enqueue-url config {:to (:url config) :from "AAAA"}))
     config))
 
 (def cli-options
