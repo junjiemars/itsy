@@ -7,6 +7,8 @@
            (java.util.concurrent LinkedBlockingQueue TimeUnit))
   (:gen-class))
 
+(set! *warn-on-reflection* true)
+
 (def ^:dynamic *config*
   (atom
    {:workers 1
@@ -19,8 +21,8 @@
             :worker-canaries (ref {})
             :seen-urls (atom {})
             :404-urls (atom #{})}
-    :http-opts {:socket-timeout 10000
-                :conn-timeout 10000
+    :http-opts {:socket-timeout 2000
+                :conn-timeout 2000
                 :insecure? true
                 :throw-entire-message? false}
     :polite? true}))

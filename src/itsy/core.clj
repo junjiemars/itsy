@@ -10,7 +10,8 @@
             [slingshot.slingshot
              :refer [get-thrown-object try+]]
             [itsy.config :as c]
-            [itsy.url :as u])
+            [itsy.url :as u]
+            [itsy.threads :as t])
   (:import (java.util.concurrent TimeUnit))
   (:gen-class))
 
@@ -23,8 +24,9 @@
   and :count."
   [config url]
   (log/debug :enqueue-url url)
-  (.put (-> config :state :url-queue)
-        {:url url :count @(-> config :state :url-count)})
+  (.put 
+   (-> config :state :url-queue)
+   {:url url :count @(-> config :state :url-count)})
   (swap! (-> config :state :url-count) inc))
 
 (defn enqueue-url
@@ -84,7 +86,7 @@
   (let [url (:url url-map)]
     (try+
      (log/trace :retrieving-body-for url-map)
-     (log/debug "###:tid=" (.getId (Thread/currentThread)))
+     (log/debug "###:tid=" (t/id))
      (let [score (:count url-map)
            body (:body (http/get url (:http-opts config)))
            _ (log/debug :extracting-urls)
@@ -96,25 +98,25 @@
          (catch Exception e
            (log/error (.getMessage e) e))))
      (catch java.net.SocketTimeoutException e
-       (log/debug "###:tid=" (.getId (Thread/currentThread)))
+       (log/debug "###:tid=" (t/id))
        (log/debug "connection timed out to" (:url url-map))
-       (dequeue config url (Thread/currentThread)))
+       (dequeue config url (t/current)))
      (catch org.apache.http.conn.ConnectTimeoutException e
        (log/debug "connection timed out to" (:url url-map))
-       (dequeue config url (Thread/currentThread)))
+       (dequeue config url (t/current)))
      (catch java.net.UnknownHostException e
        (log/debug "unknown host" (:url url-map) "skipping.")
-       (dequeue config url (Thread/currentThread)))
+       (dequeue config url (t/current)))
      (catch org.apache.http.conn.HttpHostConnectException e
        (log/debug "unable to connect to"
                   (:url url-map) "skipping")
-       (dequeue config url (Thread/currentThread)))
+       (dequeue config url (t/current)))
      (catch map? m
-       (log/debug "###:tid=" (.getId (Thread/currentThread)))
+       (log/debug "###:tid=" (t/id))
        (log/debug "unknown exception retrieving"
                   (:url url-map) "skipping.")
        (log/debug (dissoc m :body) "caught")
-       (dequeue config url (Thread/currentThread)))
+       (dequeue config url (t/current)))
      (catch Object e
        (log/debug e "!!!")))))
 
@@ -123,22 +125,20 @@
   "Return a map of threadId to Thread.State for a config 
   object."
   [config]
-  (zipmap (map (memfn getId)
-               @(-> config :state :running-workers))
-          (map (memfn getState)
-               @(-> config :state :running-workers))))
+  (let [ws (:running-workers (:state config))]
+    (zipmap (map t/id @ws) (map t/state @ws))))
 
 
 (defn- worker-fn
   "Generate a worker function for a config object."
   [config]
   (fn worker-fn* []
-    
     (loop []
       (log/trace "grabbing url from a queue of"
              (.size (-> config :state :url-queue)) "items")
-      (when-let [url-map (.poll (-> config :state :url-queue)
-                                3 TimeUnit/SECONDS)]
+      (when-let [url-map (.poll 
+                          (-> config :state :url-queue)
+                          3 TimeUnit/SECONDS)]
         (log/trace :got url-map)
         (cond
 
@@ -151,7 +151,7 @@
 
          :else
          (log/trace :politely-not-crawling (:url url-map))))
-      (let [tid (.getId (Thread/currentThread))]
+      (let [tid (t/id)]
         (log/trace :running?
                    (get @(-> config :state :worker-canaries)
                         tid))
@@ -159,7 +159,7 @@
               limit-reached
               (and (pos? (:url-limit config))
                    (>= @(:url-count state) (:url-limit config))
-                   (zero? (.size (:url-queue state))))]
+                   zero? (.size (:url-queue state)))]
           (when-not (get @(:worker-canaries state) tid)
             (log/info "my canary has died,terminating myself"))
           (when limit-reached
@@ -176,17 +176,17 @@
   "Start a worker thread for a config object, updating the 
   config's state with the new Thread object."
   [config]
-  (let [w-thread (Thread. (worker-fn config))
-        _ (.setName w-thread
-                    (str "itsy-worker-" (.getName w-thread)))
-        w-tid (.getId w-thread)]
+  (let [w-thread (t/spawn (worker-fn config))
+        _ (t/name w-thread (str "itsy-worker-"
+                                (t/name w-thread)))
+        w-tid (t/id w-thread)]
     (dosync
      (alter (-> config :state :worker-canaries)
             assoc w-tid true)
      (alter (-> config :state :running-workers)
             conj w-thread))
     (log/trace "Starting thread:" w-thread w-tid)
-    (.start w-thread))
+    (t/start w-thread))
   (log/trace "New worker count:"
              (count @(-> config :state :running-workers))))
 
@@ -198,9 +198,9 @@
     (dosync
      (ref-set (-> config :state :worker-canaries) {})
      (log/info "Waiting for workers to finish...")
-     (map #(.join % 30000)
+     (map #(t/join % 30000)
           @(-> config :state :running-workers))
-     (Thread/sleep 10000)
+     (t/sleep 10000)
      (if (= #{terminated} (set (vals (thread-status config))))
        (do
          (log/info "All workers stopped.")
@@ -208,7 +208,7 @@
        (do
          (log/warn "Unable to stop all workers.")
          (ref-set (-> config :state :running-workers)
-                  (remove #(= terminated (.getState %))
+                  (remove #(= terminated (t/state %))
                           @(-> config
                                :state :running-workers)))))))
   @(-> config :state :running-workers))
@@ -230,7 +230,7 @@
   (dosync
    (when-let [ws @(:running-workers (:state config))]
      (let [new-workers (remove #(= worker %) ws)
-           tid (.getId worker)]
+           tid (t/id worker)]
        (log/trace "Strangling canary for Thread:" tid)
        (alter (-> config :state :worker-canaries)
               assoc tid false)
@@ -283,7 +283,7 @@
         ]
     (.addShutdownHook
      (Runtime/getRuntime)
-     (Thread.
+     (t/spawn
       #(do
          (c/pretty-save out @c/*config*)
          (c/pretty-save
