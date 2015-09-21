@@ -12,7 +12,8 @@
          (log/error e) nil)))
 
 (defn extract-all
-  "Dumb URL extraction based on regular expressions. Extracts relative URLs."
+  "Dumb URL extraction based on regular expressions. 
+  Extracts relative URLs."
   [original-url body]
   (when body
     (let [candidates1 (->> (re-seq #"href=\"([^\"]+)\"" body)
@@ -27,8 +28,12 @@
                            set)
           url-regex #"https?://[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|]"
           candidates3 (re-seq url-regex body)
-          all-candidates (set (concat candidates1 candidates2 candidates3))
-          fq (set (filter #(.startsWith % "http") all-candidates))
+          all-candidates (set
+                          (concat candidates1
+                                  candidates2
+                                  candidates3))
+          fq (set (filter #(.startsWith % "http")
+                          all-candidates))
           ufq (set/difference all-candidates fq)
           fq-ufq (map #(str (url original-url %)) ufq)
           all (set (concat fq fq-ufq))]

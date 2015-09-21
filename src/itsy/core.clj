@@ -2,6 +2,7 @@
   "Tool used to crawl web pages with an aritrary handler."
   (:require [clojure.tools.cli :refer [parse-opts]]
             [clojure.string :as s]
+            [clojure.set :as set]
             [clojure.tools.logging :as log]
             [clojure.set :as set]
             ;[cemerick.url :refer [url]]
@@ -16,8 +17,6 @@
   (:gen-class))
 
 (def ^:dynamic *options* (atom {}))
-
-(def terminated Thread$State/TERMINATED)
 
 (defn- enqueue*
   "Internal function to enqueue a url as a map with :url 
@@ -59,10 +58,13 @@
             (enqueue* config to)))))))
 
 (defn enqueue-urls
-  "Enqueue a collection of urls for work"
+  "Enqueue a collection of urls which had not been seen or
+  not bad"
   [config {:keys [:to :from] :as urls}]
-  (doseq [url to]
-    (enqueue-url config {:to url :from from})))
+  (let [seen-urls (set (keys @(:seen-urls (:state config))))
+        bad-urls @(:404-urls (:state config))]
+    (doseq [url (set/difference to seen-urls bad-urls)]
+      (enqueue-url config {:to url :from from}))))
 
 (declare add-worker)
 (declare remove-worker)
@@ -177,8 +179,8 @@
   config's state with the new Thread object."
   [config]
   (let [w-thread (t/spawn (worker-fn config))
-        _ (t/name w-thread (str "itsy-worker-"
-                                (t/name w-thread)))
+        _ (t/named w-thread (str "itsy-worker-"
+                                (t/named w-thread)))
         w-tid (t/id w-thread)]
     (dosync
      (alter (-> config :state :worker-canaries)
@@ -201,16 +203,17 @@
      (map #(t/join % 30000)
           @(-> config :state :running-workers))
      (t/sleep 10000)
-     (if (= #{terminated} (set (vals (thread-status config))))
+     (if (every? #(= Thread$State/TERMINATED %)
+                 (vals (thread-status config)))
        (do
          (log/info "All workers stopped.")
          (ref-set (-> config :state :running-workers) []))
        (do
          (log/warn "Unable to stop all workers.")
-         (ref-set (-> config :state :running-workers)
-                  (remove #(= terminated (t/state %))
-                          @(-> config
-                               :state :running-workers)))))))
+         (ref-set (:running-workers (:state config))
+                  (remove
+                   #(= t/TERMINATED (t/state %))
+                   (:running-workers (:state config))))))))
   @(-> config :state :running-workers))
 
 

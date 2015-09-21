@@ -3,6 +3,13 @@
 
 (set! *warn-on-reflection* true)
 
+(def NEW Thread$State/NEW)
+(def RUNNABLE Thread$State/RUNNABLE)
+(def BLOCKED Thread$State/BLOCKED)
+(def WAITING Thread$State/WAITING)
+(def TIMED_WAITING Thread$State/TIMED_WAITING)
+(def TERMINATED Thread$State/TERMINATED)
+
 (defn spawn
   ([^Runnable f] (Thread. f))
   ([^Runnable f ^String n] (Thread. f n)))
@@ -13,7 +20,7 @@
   ([] (.getId (Thread/currentThread)))
   ([^Thread t] (.getId t)))
 
-(defn name
+(defn named
   ([] (.getName (Thread/currentThread)))
   ([^Thread t] (.getName t))
   ([^Thread t ^String n] (.setName t n) n))
