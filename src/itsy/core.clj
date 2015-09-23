@@ -17,6 +17,7 @@
 
 (def pool (Executors/newFixedThreadPool
            (.availableProcessors (Runtime/getRuntime))))
+(declare new-crawl-task)
 
 (defn- enqueue*
   "Internal function to enqueue a url as a map with :url 
@@ -85,7 +86,7 @@
       (log/debug "#dequeued")
       (t/interrupt w))))
 
-(defn- crawl-pageb
+(defn- crawl-page
   "Internal crawling function that fetches a page, 
   enqueues url found on that page and calls the handler 
   with the page body."
