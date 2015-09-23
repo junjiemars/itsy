@@ -15,12 +15,15 @@
     :url-limit 100
     :url-extractor #'u/extract-all
     :handler #'u/url-counter
+    :url "http://service.js.10086.cn"
     :state {:url-queue (LinkedBlockingQueue.)
+            :queue (ref #{})
             :url-count (atom 0)
             :running-workers (ref [])
             :worker-canaries (ref {})
-            :seen-urls (atom {})
-            :404-urls (atom #{})}
+            :seen-urls (ref #{})
+            :404-urls (atom #{})
+            :bad-urls (ref #{})}
     :http-opts {:socket-timeout 2000
                 :conn-timeout 2000
                 :insecure? true

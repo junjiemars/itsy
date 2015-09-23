@@ -1,4 +1,5 @@
 (ns itsy.threads
+  (:require [clojure.tools.logging :as log])
   (:gen-class))
 
 (set! *warn-on-reflection* true)
@@ -35,8 +36,8 @@
   ([^Thread t ms ns] (.join t ms ns)))
 
 (defn start
-  [^Thread t]
-  (.start t))
+  ([^Thread t] (.start t))
+  ([^String n ^Runnable f] (.start (Thread. f n))))
 
 (defn current
   [] (Thread/currentThread))
@@ -44,3 +45,10 @@
 (defn sleep
   ([ms] (Thread/sleep ms))
   ([ms ns] (Thread/sleep ms ns)))
+
+(defn interrupt
+  [^Thread t]
+  (try
+    (.interrupt t)
+    (catch SecurityException e
+      (log/error e))))

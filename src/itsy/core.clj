@@ -8,15 +8,15 @@
             ;[cemerick.url :refer [url]]
             [clj-http.client :as http]
             [itsy.robots :as robots]
-            [slingshot.slingshot
-             :refer [get-thrown-object try+]]
             [itsy.config :as c]
             [itsy.url :as u]
             [itsy.threads :as t])
-  (:import (java.util.concurrent TimeUnit))
+  (:import [java.util.concurrent
+            TimeUnit Executors ExecutorService])
   (:gen-class))
 
-(def ^:dynamic *options* (atom {}))
+(def pool (Executors/newFixedThreadPool
+           (.availableProcessors (Runtime/getRuntime))))
 
 (defn- enqueue*
   "Internal function to enqueue a url as a map with :url 
@@ -67,26 +67,31 @@
       (enqueue-url config {:to url :from from}))))
 
 (declare add-worker)
-(declare remove-worker)
+(declare spawn-workers)
 
 (defn dequeue
   [config url worker]
-  (log/debug "dequeue " url)
+  (log/debug "#dequeue:" url)
   (swap! (:seen-urls (:state config))
          dissoc url)
   (swap! (:404-urls (:state config))
          conj url)
-  ;(add-worker config)
-  ;(.start (Thread. #(.notify worker)))
-  )
+  (let [p (promise)
+        c config
+        w worker]
+    (future (spawn-workers c)
+            (deliver p true))
+    (when @p
+      (log/debug "#dequeued")
+      (t/interrupt w))))
 
-(defn- crawl-page
+(defn- crawl-pageb
   "Internal crawling function that fetches a page, 
   enqueues url found on that page and calls the handler 
   with the page body."
   [config url-map]
   (let [url (:url url-map)]
-    (try+
+    (try
      (log/trace :retrieving-body-for url-map)
      (log/debug "###:tid=" (t/id))
      (let [score (:count url-map)
@@ -99,28 +104,9 @@
            (f (assoc url-map :body body)))
          (catch Exception e
            (log/error (.getMessage e) e))))
-     (catch java.net.SocketTimeoutException e
-       (log/debug "###:tid=" (t/id))
-       (log/debug "connection timed out to" (:url url-map))
-       (dequeue config url (t/current)))
-     (catch org.apache.http.conn.ConnectTimeoutException e
-       (log/debug "connection timed out to" (:url url-map))
-       (dequeue config url (t/current)))
-     (catch java.net.UnknownHostException e
-       (log/debug "unknown host" (:url url-map) "skipping.")
-       (dequeue config url (t/current)))
-     (catch org.apache.http.conn.HttpHostConnectException e
-       (log/debug "unable to connect to"
-                  (:url url-map) "skipping")
-       (dequeue config url (t/current)))
-     (catch map? m
-       (log/debug "###:tid=" (t/id))
-       (log/debug "unknown exception retrieving"
-                  (:url url-map) "skipping.")
-       (log/debug (dissoc m :body) "caught")
-       (dequeue config url (t/current)))
-     (catch Object e
-       (log/debug e "!!!")))))
+     (catch Exception e
+       (log/debug e)
+       (dequeue config url (t/current))))))
 
 
 (defn thread-status
@@ -154,23 +140,17 @@
          :else
          (log/trace :politely-not-crawling (:url url-map))))
       (let [tid (t/id)]
-        (log/trace :running?
-                   (get @(-> config :state :worker-canaries)
-                        tid))
         (let [state (:state config)
               limit-reached
               (and (pos? (:url-limit config))
                    (>= @(:url-count state) (:url-limit config))
                    zero? (.size (:url-queue state)))]
-          (when-not (get @(:worker-canaries state) tid)
-            (log/info "my canary has died,terminating myself"))
           (when limit-reached
             (log/debug (str "url limit reached: ("
                             @(:url-count state)
                         "/" (:url-limit config)
                         "), terminating myself")))
-          (when (and (get @(:worker-canaries state) tid)
-                     (not limit-reached))
+          (when (not limit-reached)
             (recur)))))))
 
 
@@ -183,8 +163,6 @@
                                 (t/named w-thread)))
         w-tid (t/id w-thread)]
     (dosync
-     (alter (-> config :state :worker-canaries)
-            assoc w-tid true)
      (alter (-> config :state :running-workers)
             conj w-thread))
     (log/trace "Starting thread:" w-thread w-tid)
@@ -198,7 +176,6 @@
   (when (pos? (count @(-> config :state :running-workers)))
     (log/info "Strangling canaries...")
     (dosync
-     (ref-set (-> config :state :worker-canaries) {})
      (log/info "Waiting for workers to finish...")
      (map #(t/join % 30000)
           @(-> config :state :running-workers))
@@ -213,7 +190,7 @@
          (ref-set (:running-workers (:state config))
                   (remove
                    #(= t/TERMINATED (t/state %))
-                   (:running-workers (:state config))))))))
+                   @(:running-workers (:state config))))))))
   @(-> config :state :running-workers))
 
 
@@ -225,22 +202,21 @@
   (start-worker config)
   (count @(-> config :state :running-workers)))
 
-(defn remove-worker
+(defn spawn-workers
   "Given a config object, remove a worker from the pool, 
   returns the new worker count."
   [config worker]
-  (log/trace "Removing one worker from the pool")
+  (log/debug "removing one worker from the pool")
   (dosync
-   (when-let [ws @(:running-workers (:state config))]
-     (let [new-workers (remove #(= worker %) ws)
-           tid (t/id worker)]
-       (log/trace "Strangling canary for Thread:" tid)
-       (alter (-> config :state :worker-canaries)
-              assoc tid false)
+   (when-let [ws (:running-workers (:state config))]
+     (let [remains (remove #(or (= t/TERMINATED (t/state %))
+                                (= t/WAITING (t/state %))) @ws)
+           subs (- (:workers config) (count remains))]
+       (when (> subs 0)
+         (dotimes [i subs]
+           (add-worker config)))
        (ref-set (-> config :state :running-workers)
-                new-workers))))
-  (log/trace "New worker count:"
-             (count @(-> config :state :running-workers)))
+                (remove #(= t/TERMINATED (t/state %)) @ws)))))
   (count @(-> config :state :running-workers)))
 
 (defn crawl
@@ -259,6 +235,61 @@
       (log/info "Starting crawl of" (:url config))
       (enqueue-url config {:to (:url config) :from "/"}))
     config))
+
+(defn- enqueue1
+  [config urls]
+  (dosync (let [q (:queue (:state config))
+                bad (:bad-urls (:state config))
+                seen (:seen-urls (:state config))
+                new (set/difference urls @bad @seen)]
+            (alter q set/union new))))
+
+(defn- dequeue1
+  [config]
+  (dosync (let [q (:queue (:state config))
+                n0 (first @q)]
+            (alter q set/difference #{n0})
+            n0)))
+
+(defn- trash
+  [config url]
+  (dosync (let [bad (:bad-urls (:state config))]
+            (alter bad conj url))))
+
+(defn- seen-url
+  [config url]
+  (dosync (let [seen (:seen-urls (:state config))]
+            (alter seen set/union #{url}))))
+
+(defn- crawling1
+  [config pool]
+  (let [url (dequeue1 config)
+        page (try
+               (http/get url (:http-opts config))
+               (catch Exception e
+                 (log/error e)))]
+    (if-let [body (:body page)]
+      (let [urls (u/extract-all url body)]
+        (seen-url config url)
+        (enqueue1 config urls))
+      (trash config url))
+    (dosync (let [q (:queue (:state config))]
+              (when (< (.getActiveCount pool)
+                       (count @q))
+                (new-crawl-task pool
+                                #(crawling1 config pool)))))))
+
+(defn- new-crawl-task
+  [^ExecutorService pool
+   ^Runnable task]
+  (.submit pool task))
+
+(defn- crawl1
+  [config pool]
+  (when-let [url (:url config)]
+    (enqueue1 config #{url})
+    (new-crawl-task pool #(crawling1 config pool))
+    url))
 
 (def cli-options
   [["-f" "--file FILE" "Configuration File"
@@ -279,7 +310,6 @@
 (defn -main
   "Read configuration file and run"
   [& args]
-
   (let [opts (parse-opts args cli-options)
         conf (c/read-from-file (:file (:options opts)))
         out (:out (:options opts))
@@ -293,4 +323,6 @@
           (str out "-urls")
           (keys @(:seen-urls (:state @c/*config*)))))))
     (log/info "ready to crawl " (:url conf))
-    (crawl conf)))
+    ;(crawl conf)
+    (crawl1 conf pool)
+    ))

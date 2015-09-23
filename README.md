@@ -1,13 +1,3 @@
-# Itsy
-
-## How to use
-
-### How to specify the logfile path
-JAVA_OPTS="-Dlogfile.path=<path>" lein with-profile uberjar [run]
-
-
-
-# THE BELLOW BE DEPRECATED
 ================
 # Itsy
 
@@ -198,6 +188,17 @@ Usage:
 - <del>Have threads auto-clean when url-limit is hit</del>
 - <del>Use Tika for HTML extraction</del>
 - Write tests
+
+## 0o0 Changes
+- Migrated from the Library to the long running service;
+- Add command-line arguments, just -f <config-file> -o <output-file>;
+- How to test:
+```lein with-profile dev run -f <config-file> -o <output-file>```
+- How to make a uberjar:
+```lein with-profile uberjar uberjar```
+- How to run with uberjar:
+```java -jar <itsy-uberjar-path> -f <config-file> -o <output-file>```
+      
 
 ## License
 
